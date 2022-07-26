@@ -2,10 +2,8 @@ import socket
 from http.server import HTTPServer, BaseHTTPRequestHandler
 import _thread
 import urllib.request
-import signal
 import sys
 import time
-import threading
 import urllib.error
 import urllib.request
 import urllib.parse
@@ -28,35 +26,40 @@ def _generate_headers(response_code):
     return header
 
 def createServer(client):
-    request = client.recv(1024).decode() #qq coisa tira decode aq // poe
+
+    try:
+
+        request = client.recv(1024).decode() #qq coisa tira decode aq // poe
 
 
-    request_method = request.split(' ')[0]
+        request_method = request.split(' ')[0]
 
-    if request_method == 'GET':
-        print('OK')
-        url = request.split(' ')[1]
-        print("Conectando em: {}".format(url))
-        pagina = urllib.request.urlopen(url) #aqui abre o site
-        print(pagina.read())
-        url = request.split('?')[0]
+        if request_method == 'GET':
+            print('OK')
+            url = request.split(' ')[1]
+            print("Conectando em: {}".format(url))
+            pagina = urllib.request.urlopen(url) #aqui abre o site
+            print(pagina.read())
+            url = request.split('?')[0]
 
-        if url == "/":
-            url = "/index.html"
-    else:
-        print('Requisão HTTP desconhecida')
+            if url == "/":
+                url = "/index.html"
+        else:
+            print('Requisão HTTP desconhecida')
 
-    if request_method == 'GET':
-        response_header = _generate_headers(200)
-        response = response_header.encode()
-        client.send(response)
-    else:
-        response_header = _generate_headers(404)
-        response = response_header.encode()
-        client.send(response)
+        if request_method == 'GET':
+            response_header = _generate_headers(200)
+            response = response_header.encode()
+            client.send(response)
+        else:
+            response_header = _generate_headers(404)
+            response = response_header.encode()
+            client.send(response)
 
-    client.close()
+        client.close()
 
+    except Exception as Error:
+        print("[*] Erro ao Receber mensagem {}".format(Error))
 
 
 def main():
@@ -67,35 +70,55 @@ def main():
 
     if size_args < 9:
         print("Quantidades de argumentos invalidos!\n")
-        print("Exemplo: python3 -c <cache_size> -p <port> -l <log_file> -a <algoritmo de cache>")
+        print("Exemplo: python3 -c <Cache_size> -p <Porta> -l <Nome do Arquivo > -a <Algoritmo de cache>")
         sys.exit(-1)
         
 
     # --- PASSAGEM DOS VALORES QUE ESTÃO NO PARAMETRO
-    CACHE_SIZE_IN_KB = int(sys.argv[2])
-    PORT = int(sys.argv[4])
-    LOG_FILENAME = sys.argv[6]
-    ALG_CACHE = sys.argv[8]
+    i=1
+    while i < 9:
+        if sys.argv[i] == '-c':
+            CACHE_SIZE_IN_KB =  int(sys.argv[i+1])
+           
+        if sys.argv[i] == '-p':
+            PORT = int(sys.argv[i+1])
 
-    s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-    print("Servidor iniciado")
-    # reserva o port
+        if sys.argv[i] == '-l':
+            LOG_FILENAME = sys.argv[i+1]
 
-    # socket flag
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind(('', PORT))
-    print("Ligado a porta %s" % (PORT))
-    # coloca o socket em listen
-    s.listen(10)
-    print("Servidor ouvindo conexões")
+        if sys.argv[i] == '-a':
+            ALG_CACHE = sys.argv[i+1]
+        
+        i = i+1
 
-    # loop
-    while True:
-        # abre a conexao com o cliente
-        client, addr = s.accept()
-        print('Conexão no endereço', addr)
+    try:
+        print("[*] Servidor iniciando...")
+        s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        # socket flag
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(('', PORT))
+        print("[*] Ligado a porta %s" % (PORT))
+        
+        s.listen(10)
+        print("[*] Servidor ouvindo conexões")
+     
+        while True:
+            # abre a conexao com o cliente
+            try:   
+                client, addr = s.accept()
+                print('Conexão no endereço', addr)
 
-        _thread.start_new_thread(createServer, (client,))
+                _thread.start_new_thread(createServer, (client,))
+             
+            except KeyboardInterrupt:
+                s.close()
+                print("\n[*] Shutting down...")
+                sys.exit(1)
+          
+    
+    except Exception as error:
+        print("[*] Erro ao fazer o bind: {}".format(error))
+        sys.exit(-1)
 
 if __name__ == '__main__':
     main()
