@@ -1,18 +1,73 @@
 import socket
-from http.server import HTTPServer, BaseHTTPRequestHandler
 import _thread
 import sys
 import time
-import urllib.error
-import urllib.request
-import urllib.parse
 import urllib3
 
 
-def opening_site(url, c):
+class LRUCache(object):
+    def __init__(self, capacity):
+        self.capacity = capacity
+        self.cache = {}
+        self.lru = {}
+        self.tm = 0
+
+    def get(self, key):  # se o dado existir no cache,retorna ele,se nao,retorna -1
+        "Pegando dados do cache"
+
+        if key in self.cache:  # se a chave existe no cache
+            # variavel contadora de requisiçoes de dados vai somar 1
+            self.lru[key] = self.tm
+            self.tm = self.tm + 1
+            print("Cached")
+            return self.cache[key]
+        else:
+            return -1  # dado nao ta no cache
+
+    def set(self, key, value):  # garantir que n vai atingir a capacidade maxima definida
+        if len(self.cache) > self.capacity:  # se tiver cheio o cache,vai remover o mais antigo
+            old_key = min(self.lru.keys(), key=lambda k: self.lru[k])
+
+            # removendo
+            self.cache.pop(old_key)  # remove o mais antigo do cache
+            self.lru.pop(old_key)  # remove do LRU
+        else:
+            self.cache[key] = value
+            self.lru[key] = self.tm
+            self.tm = self.tm + 1
+
+        print("LRU:{} \n".format(self.lru))
+        # print("Cache:{}".format(self.cache))
+
+
+# função abre site e verifica se tem no
+def verifica_Cache(url_, c):
+    try:
+        site_http = url_
+
+        response = open_website(site_http)
+
+        verifica = CACHE.get(site_http)
+
+        if(verifica == -1):
+            result = response
+            verifica = CACHE.set(site_http, result)
+            c.send(result)
+
+            # print("Computando")
+            # time.sleep(3)
+            # return result
+        else:
+            c.send(verifica)
+
+    except Exception as Error:
+        print("[*] Erro ao verificar/adicionar ao cache: {} ".format(Error))
+
+
+def open_website(url):
     http = urllib3.PoolManager()
     response = http.request("GET", url)
-    c.send(response.data)
+    return(response.data)
 
 
 def _generate_headers(response_code):
@@ -29,15 +84,14 @@ def _generate_headers(response_code):
     header += "Date: {now}\n".format(now=time_now)
     header += "Server: Simple-Python-Server\n"
     header += "Connection: close\n\n"  # Conexão sera fechada depois da requisição
-    return header
+
+    return(header)
 
 
 def createServer(client):
-
     try:
 
         request = client.recv(1024).decode()  # qq coisa tira decode aq // poe
-
         request_method = request.split(" ")[0]
 
         # se url existir no cache,retorne tal informação,se n ::
@@ -52,17 +106,18 @@ def createServer(client):
 
         # conectando no site
         if request_method == "GET":
-            print("Conectando em: ")
             url = request.split(" ")[1]
             if url == "/":
                 url = "/index.html"
-            print(url)
-            opening_site(url, client)  # função envia site aberto pro cliente
+
+            print("[*]Conectando em: {}\n".format(url))
+            # opening_site(url, client)  # função envia site aberto pro cliente
+            verifica_Cache(url, client)
 
             url = request.split("?")[0]
 
         else:
-            print("Requisão HTTP desconhecida")
+            print("[*]Requisão HTTP desconhecida\n")
 
         client.close()
 
@@ -70,9 +125,10 @@ def createServer(client):
         print("[*] Erro ao receber mensagem {}".format(Error))
         client.close()
 
+
 def main():
 
-    global PORT, CACHE_SIZE_IN_KB, LOG_FILENAME, ALG_CACHE
+    global CACHE, PORT, CACHE_SIZE_IN_KB, LOG_FILENAME, ALG_CACHE
 
     size_args = len(sys.argv)
 
@@ -100,6 +156,8 @@ def main():
 
         i = i + 1
 
+    CACHE = LRUCache(capacity=CACHE_SIZE_IN_KB)
+
     try:
         print("[*] Servidor iniciando...")
         s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
@@ -115,7 +173,7 @@ def main():
             # abre a conexao com o cliente
             try:
                 client, addr = s.accept()
-                print("Conexão no endereço", addr)
+                print("[*]Conexão no endereço", addr)
 
                 _thread.start_new_thread(createServer, (client,))
 
