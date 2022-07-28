@@ -4,7 +4,14 @@ import sys
 import time
 import urllib3
 import logging
-from logging.handlers import RotatingFileHandler
+
+CACHE={}
+LOGGER={}
+PORT=0
+CACHE_SIZE_IN_BYTES=0 
+LOG_FILENAME=""
+CONT_REQ = 0
+CONT_HITS = 0
 
 
 class LRUCache(object):
@@ -45,27 +52,35 @@ class LRUCache(object):
                 # removendo
                 try:
                     # Evicted
-                    # loggingmsg = str(_thread.get_native_id())+"\tCACHE FULL\t"+str(self.capacity)
                     # LOGGER.info(loggingmsg)
                     # remove o mais antigo do cache
-                    loggingmsg = str(_thread.get_native_id())+"\tEVICT\t"+old_key+"\tEXPIRED" #algo foi expulso do cache 
-                    LOGGER.info(loggingmsg) #escreve a variavel no loggging
+                    loggingmsg = ""
+                    loggingmsg = str(_thread.get_native_id()) + \
+                        "\tEVICT\t"+old_key+"\tCACHE FULL"  # Cache cheio
+                    LOGGER.info(loggingmsg)  # escreve a variavel no loggging
+                    # algo foi expulso do cache
+                    loggingmsg = str(_thread.get_native_id()) + \
+                        "\tEVICT\t"+old_key+"\tEXPIRED"
+                    LOGGER.info(loggingmsg)  # escreve a variavel no loggging
 
                     self.cache_data.pop(old_key)
                     self.lru.pop(old_key)  # remove do LRU
+
+                    # Adicionado
+                    self.cache_data[key] = value
+                    self.lru[key] = self.tm
+                    self.tm = self.tm + 1
+
                 except:
                     print("Não foi possivel remover o cache antigo.")
 
         else:
             # Salvo no Cache
-            
+
             self.cache_data[key] = value
             self.lru[key] = self.tm
             self.tm = self.tm + 1
 
-            loggingmsg = str(_thread.get_native_id())+"\tADD\t"+key
-            LOGGER.info(loggingmsg)
-         
         # print("\nLRU: {}\n".format(self.lru))
         # print("\nCache: {}\n".format(self.cache_data))
 
@@ -74,35 +89,55 @@ class LRUCache(object):
         self.lru = {}
         self.tm = 0
 
-    def delete(self, key): 
+    def delete(self, key):
+        print("\nLRU: {}\n".format(self.lru))
         if key in self.cache_data:  # se a chave existe no cache
             # variavel contadora de requisiçoes de dados vai somar 1
             self.cache_data.pop(key)
             self.lru.pop(key)
         else:
             print("Não foi possivel deletar")
-            
+
+        print("\nLRU: {}\n".format(self.lru))
+        
 # função abre site e verifica se tem no
+
+
 def verifica_Cache(url_, c):
     try:
         site_http = url_
 
+        loggingmsg = ""
         response = open_website(site_http)
         
-        verifica = CACHE.get(site_http) 
+        
+        if not ("http://" in site_http):
+            site_http = "http://"+site_http
+
+        verifica = CACHE.get(site_http)
 
         if(verifica == -1):
             result = response
             verifica = CACHE.set(site_http, result)
+
+            loggingmsg = str(_thread.get_native_id())+"\tADD\t"+site_http
+            LOGGER.info(loggingmsg)
+
             c.send(result)
-            
+
             # print("Computando")
             # time.sleep(3)
             # return result
         else:
             # Aqui adicionar a variavel de HIT++ pois está no cache
-            loggingmsg = str(_thread.get_native_id())+"\tHIT\t"+site_http #requisição esta no cache
+            loggingmsg = str(_thread.get_native_id())+"\tHIT\t" + \
+                site_http  # requisição esta no cache
             LOGGER.info(loggingmsg)
+            
+            global CONT_HITS
+
+            CONT_HITS = CONT_HITS + 1
+
             c.send(verifica)
 
     except Exception as Error:
@@ -134,6 +169,7 @@ def _generate_headers(response_code):
 
 
 def createServer(client):
+    global CONT_REQ, CONT_HITS
     try:
 
         request = client.recv(1024).decode()  # qq coisa tira decode aq // poe
@@ -144,11 +180,17 @@ def createServer(client):
             response_header = _generate_headers(200)
             response = response_header.encode()
             print(response)
+        elif request_method == "ADMIN":
+            cmd = request.split(' ')[2]  # CMD == 3 termo da requisição
+            response_header = _generate_headers(200)
+            response = response_header.encode()
+            print(response)
         else:
             response_header = _generate_headers(404)
             response = response_header.encode()
             client.send(response)
 
+   
         # conectando no site
         if request_method == "GET":
             url = request.split(" ")[1]
@@ -157,16 +199,62 @@ def createServer(client):
 
             print("\n[*]Conectando em: {}\n".format(url))
             # opening_site(url, client)  # função envia site aberto pro cliente
-
             verifica_Cache(url, client)
+            
+            CONT_REQ = CONT_REQ + 1
 
             url = request.split("?")[0]
+
+        elif request_method == 'ADMIN':  # ADMIN REQUEST COMANDO
+            global CACHE
+            admrequestlow = request.split(' ')[1]  # SE O REQUEST FOR..
+            admrequest = admrequestlow.upper()
+
+            if admrequest == 'FLUSH':
+                CACHE.clear_cache()
+                # print('Funçao flush aqui')  # FUNÇÃO FLUSH
+            elif admrequest == 'DELETE':
+                if not ("http://" in cmd):
+                    cmd = "http://"+cmd
+
+                CACHE.delete(cmd)
+                # print('função delete aqui')  # FUNÇÃO DELETE (cmd)
+
+            elif admrequest == 'INFO':
+
+                match cmd:
+                    case "0":
+                        # Se for "INFO 0".. então despeje tudo que está na cache.
+                        print('chama a função')
+                    case "1":
+                        # Se for "INFO 1".. então despeje tudo o que não estiver expirado.
+                        print('chama a função')
+                    case "2":
+                        # Se for "INFO 2'.. registras estatisticas no log
+                        print('chama a função')
+                    case other:
+                        print('501 NOT IMPLEMENTED')
+            elif admrequest == 'MUDAR':
+                # cmd vai valer o tamanho que quero mudar
+                cmd = request.split(' ')[2]
+                # chamar a funçao mudadr(cmd)
 
         else:
             print("[*]Requisão HTTP desconhecida\n")
 
-        client.close()
+        NFaltas = CONT_REQ - CONT_HITS
 
+        loggingmsg = str(_thread.get_native_id()) + "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
+        LOGGER.info(loggingmsg)
+
+        loggingmsg = str(_thread.get_native_id()) + "\tNÚMERO TOTAIS DE HITS\t" + str(CONT_HITS)
+        LOGGER.info(loggingmsg)
+
+        loggingmsg = str(_thread.get_native_id()) +"\tNÚMERO TOTAIS DE FALTAS\t" + str(NFaltas)
+        LOGGER.info(loggingmsg)
+ 
+        client.close()
+        
     except Exception as Error:
         print("[*] Erro ao receber mensagem {}".format(Error))
         client.close()
@@ -174,7 +262,7 @@ def createServer(client):
 
 def main():
 
-    global LOGGER, CACHE, PORT, CACHE_SIZE_IN_BYTES, LOG_FILENAME, ALG_CACHE, NREQ, NHITS, NFALTA
+    global CACHE, LOGGER, PORT, CACHE_SIZE_IN_BYTES, LOG_FILENAME
 
     size_args = len(sys.argv)
 
@@ -204,11 +292,11 @@ def main():
 
     LOGGER = logging.getLogger(LOG_FILENAME)
     LOGGER.setLevel(logging.INFO)
-    handler = RotatingFileHandler(LOG_FILENAME, maxBytes=2000, backupCount=5)
+    handler = logging.FileHandler(LOG_FILENAME, mode='w')
     LOGGER.addHandler(handler)
 
     CACHE = LRUCache(capacity=CACHE_SIZE_IN_BYTES)
-    
+
     try:
         print("[*] Servidor iniciando...")
         s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
@@ -242,16 +330,13 @@ if __name__ == "__main__":
     main()
 
 # Conversar com o CAUE sobre essas MSG
-#  
+#
 # loggingmsg = str(_thread.get_native_id())+"\tNUMERO TOTAL DE REQUISIÇÕES\t"+ str(nreq)
-# loggingmsg = str(_thread.get_native_id())+"\tNÚMERO TOTAIS DE HITS\t"+ str(nhits)
-# loggingmsg = str(_thread.get_native_id())+"\tNÚMERO TOTAIS DE FALTAS\t" + str(nfalta) #nfalta=(nreq-nhits) #FALTAS TOTAIS-> QUANDO ALGUMA REQUISIÇÃO NAO ESTA NO CACHE = NUMERO DE REQUIÇOES TOTAIS,MENOS AS REQUISIÇOES QUE ESTA NO CACHE
+# loggingmsg = str(_thread.get_native_id())+"\tNÚMERO TOTAIS DE HITS\t"+ str(NHits)
+# loggingmsg = str(_thread.get_native_id())+"\tNÚMERO TOTAIS DE FALTAS\t" + str(nfalta) #nfalta=(nreq-NHits) #FALTAS TOTAIS-> QUANDO ALGUMA REQUISIÇÃO NAO ESTA NO CACHE = NUMERO DE REQUIÇOES TOTAIS,MENOS AS REQUISIÇOES QUE ESTA NO CACHE
 # loggingmsg = str(_thread.get_native_id())+"\tTAMANHO MÉDIO DAS PAGINAS DO CACHE\T" +str(nfalta/cache_size)
 # loggingmsg = str(_thread.get_native_id())+"\tCHSIZE\t"+cache_size #<identificador> \TAB CHSIZE \TAB old: <oldsize> new: <newsize>
-# loggingmsg = str(_thread.get_native_id())+"\tEVICT\t"+url"\tEXPIRED" #algo foi expulso do cache 
-
-
-
+# loggingmsg = str(_thread.get_native_id())+"\tEVICT\t"+url"\tEXPIRED" #algo foi expulso do cache
 
 
 """
