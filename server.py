@@ -88,18 +88,21 @@ class LRUCache(object):
         self.cache_data = {}
         self.lru = {}
         self.tm = 0
-
+        loggingmsg = str(_thread.get_native_id())+"\tADMIN\tFLUSH\tEVICT\t"
+        LOGGER.info(loggingmsg)
+        
     def delete(self, key):
         print("\nLRU: {}\n".format(self.lru))
         if key in self.cache_data:  # se a chave existe no cache
             # variavel contadora de requisiçoes de dados vai somar 1
+            
             self.cache_data.pop(key)
             self.lru.pop(key)
         else:
             print("Não foi possivel deletar")
 
         print("\nLRU: {}\n".format(self.lru))
-        
+
 # função abre site e verifica se tem no
 
 
@@ -181,7 +184,6 @@ def createServer(client):
             response = response_header.encode()
             print(response)
         elif request_method == "ADMIN":
-            cmd = request.split(' ')[2]  # CMD == 3 termo da requisição
             response_header = _generate_headers(200)
             response = response_header.encode()
             print(response)
@@ -212,24 +214,29 @@ def createServer(client):
 
             if admrequest == 'FLUSH':
                 CACHE.clear_cache()
-                # print('Funçao flush aqui')  # FUNÇÃO FLUSH
+                
             elif admrequest == 'DELETE':
+                cmd = request.split(' ')[2]
+
                 if not ("http://" in cmd):
                     cmd = "http://"+cmd
 
                 CACHE.delete(cmd)
-                # print('função delete aqui')  # FUNÇÃO DELETE (cmd)
 
             elif admrequest == 'INFO':
+                cmd = request.split(' ')[2]
 
                 match cmd:
                     case "0":
+                        # Despejar os nomes do sites que estão no cache no ARQUIVO LOG
                         # Se for "INFO 0".. então despeje tudo que está na cache.
                         print('chama a função')
                     case "1":
+                        # VER DEPOIS POR CONTA DO IF-MODIFIED-SINCE
                         # Se for "INFO 1".. então despeje tudo o que não estiver expirado.
                         print('chama a função')
                     case "2":
+                        # JOGAR TODAS AS ESTATISTICAS
                         # Se for "INFO 2'.. registras estatisticas no log
                         print('chama a função')
                     case other:
