@@ -6,11 +6,11 @@ import urllib3
 import logging
 import datetime
 
-CACHE={}
-LOGGER={}
-PORT=0
-CACHE_SIZE_IN_BYTES=0 
-LOG_FILENAME=""
+CACHE = {}
+LOGGER = {}
+PORT = 0
+CACHE_SIZE_IN_BYTES = 0
+LOG_FILENAME = ""
 CONT_REQ = 0
 CONT_HITS = 0
 
@@ -22,15 +22,17 @@ class LRUCache(object):
         self.lru = {}
         self.tm = 0
         self.expires = {}
+        self.qtdHits = {}
 
     def get(self, key):  # se o dado existir no cache,retorna ele,se nao,retorna -1
         "Pegando dados do cache"
 
         if key in self.cache_data:  # se a chave existe no cache
             # variavel contadora de requisiçoes de dados vai somar 1
-        
+
             self.lru[key] = self.tm
             self.tm = self.tm + 1
+            self.qtdHits[key] = self.qtdHits + 1
             print("Cached")
 
             return self.cache_data[key]
@@ -52,10 +54,11 @@ class LRUCache(object):
                 return(print("Não é possivel salvar em cache o pagina pois excede o limite"))
             else:
                 while((size_in_bytes + sys.getsizeof(value)) > self.capacity):
-                    
+
                     if not (self.lru == {}):
-                        old_key = min(self.lru.keys(), key=lambda k: self.lru[k])
-                    
+                        old_key = min(self.lru.keys(),
+                                      key=lambda k: self.lru[k])
+
                     # removendo
                     if not (self.lru == {}):
                         try:
@@ -65,23 +68,23 @@ class LRUCache(object):
                             loggingmsg = ""
                             loggingmsg = str(_thread.get_native_id()) + \
                                 "\tEVICT\t"+old_key+"\tCACHE FULL"  # Cache cheio
-                            LOGGER.info(loggingmsg)  # escreve a variavel no loggging
+                            # escreve a variavel no loggging
+                            LOGGER.info(loggingmsg)
 
                             self.cache_data.pop(old_key)
                             self.lru.pop(old_key)  # remove do LRU
                             self.expires.pop(old_key)
 
-                            
                         except:
                             print("Não foi possivel remover o cache antigo.")
-                    
+
                     size_in_bytes = 0
                     for c in self.cache_data:
-                        size_in_bytes += sys.getsizeof(self.cache_data[c])            
-                
+                        size_in_bytes += sys.getsizeof(self.cache_data[c])
+
                 # Adicionado
                 timeNow = datetime.datetime.now()
-                timeNow += datetime.timedelta(minutes = 1)
+                timeNow += datetime.timedelta(minutes=1)
                 self.expires[key] = timeNow
                 self.cache_data[key] = value
                 self.lru[key] = self.tm
@@ -91,7 +94,7 @@ class LRUCache(object):
         else:
             # Salvo no Cache
             timeNow = datetime.datetime.now()
-            timeNow += datetime.timedelta(minutes = 1)
+            timeNow += datetime.timedelta(minutes=1)
 
             self.expires[key] = timeNow
             print("Tempo Para Expirar: {}".format(self.expires[key]))
@@ -108,10 +111,11 @@ class LRUCache(object):
         self.lru = {}
         self.tm = 0
         self.expires = {}
+        self.qtdHits = {}
 
         loggingmsg = str(_thread.get_native_id())+"\tADMIN\tFLUSH\tEVICT\t"
         LOGGER.info(loggingmsg)
-        
+
     def delete(self, key):
         # print("\nLRU: {}\n".format(self.lru))
         if key in self.cache_data:  # se a chave existe no cache
@@ -119,30 +123,65 @@ class LRUCache(object):
             self.expires.pop(key)
             self.cache_data.pop(key)
             self.lru.pop(key)
+            self.qtdHits.pop(key)
+
         else:
             print("Não foi possivel deletar")
 
         print("\nLRU: {}\n".format(self.lru))
 
     def expire_cache(self, key):
-        
+
         timeNow = datetime.datetime.now()
-
-        # Tempo de expire:     22/03/2022 10:05   
+        # Tempo de expire:     22/03/2022 10:05
         # Tempo da Requisição: 22/03/2022 10:06
-        print(key)
-        print(timeNow)
-
         expireDate = self.expires[key]
-        print(expireDate)
 
         if timeNow > expireDate:
-            print("Entrou")
             self.delete(key)
             loggingmsg = str(_thread.get_native_id())+"\t"+key+"\t Expired"
             LOGGER.info(loggingmsg)
-            # verifica_Cache(key, client)
 
+    def dump(self, identifier):
+        # <identificador> \TAB DUMP \TAB Dump Start
+        ALL_size_in_bytes = 0
+
+        loggingmsg = str(_thread.get_native_id()) + \
+            "\t"+" DUMP"+"\t"+" Dump Start"
+        LOGGER.info(loggingmsg)
+
+        itemSize = 0
+        contForFile = 1
+
+        if identifier == 0:
+            for key in self.cache_data:
+                ALL_size_in_bytes += sys.getsizeof(self.cache_data[key])
+
+            loggingmsg = str(_thread.get_native_id())+"\t" + \
+                " DUMP"+"\t"+" Size \t" + str(ALL_size_in_bytes)
+            LOGGER.info(loggingmsg)
+
+            # <identificador> \TAB
+            #  DUMP \TAB <fileid> \TAB <size> \TAB <hits> \TAB <expire date> \TAB <URL>
+
+            for key in self.cache_data:
+                print("\n KEY: {}".format(key))
+                # print("\nTESTE: {}".format(self.lru[key]))
+                itemSize = sys.getsizeof(self.cache_data[key])
+                # Colocar A quantidade de HIT naquela pagina
+                loggingmsg = str(_thread.get_native_id())+"\t " + "DUMP"+ "\t" + "fileid" + str(contForFile)+ "\t " + str(itemSize) + "\t "+ "\t " + str(self.expires[key]) + "\t " + str(key)
+                LOGGER.info(loggingmsg)
+                contForFile = contForFile + 1
+                itemSize = 0
+                loggingmsg = ""
+
+            # self.cache_data[key]
+            
+        else:
+            print("asdasd")
+        loggingmsg = str(_thread.get_native_id()) + \
+                "\t"+" DUMP"+"\t"+" Dump End"
+        LOGGER.info(loggingmsg)
 
 def verifica_Cache(url_, c):
     try:
@@ -150,8 +189,7 @@ def verifica_Cache(url_, c):
 
         loggingmsg = ""
         response = open_website(site_http)
-        
-        
+
         verifica = CACHE.get(site_http)
 
         if(verifica == -1):
@@ -174,7 +212,7 @@ def verifica_Cache(url_, c):
             loggingmsg = str(_thread.get_native_id())+"\tHIT\t" + \
                 site_http  # requisição esta no cache
             LOGGER.info(loggingmsg)
-            
+
             global CONT_HITS
 
             CONT_HITS = CONT_HITS + 1
@@ -216,7 +254,7 @@ def createServer(client):
 
         request = client.recv(1024).decode()  # qq coisa tira decode aq // poe
         request_method = request.split(" ")[0]
-    
+
         # se url existir no cache,retorne tal informação,se n ::
         if request_method == "GET":
             response_header = _generate_headers(200)
@@ -227,13 +265,12 @@ def createServer(client):
             response_header = _generate_headers(200)
             response = response_header.encode()
             client.send(response)
-            
+
         else:
             response_header = _generate_headers(404)
             response = response_header.encode()
             client.send(response)
 
-   
         # conectando no site
         if request_method == "GET":
 
@@ -241,23 +278,21 @@ def createServer(client):
 
             if url == "/":
                 url = "/index.html"
-            
+
             if not ("http://" in url):
                 url = "http://"+url
 
-            
             if "if-modified-since" in request:
                 print("Test")
                 CACHE.expire_cache(url)
-                        
+
             print("\n[*]Conectando em: {}\n".format(url))
             # opening_site(url, client)  # função envia site aberto pro cliente
             verifica_Cache(url, client)
-            
+
             CONT_REQ = CONT_REQ + 1
 
             url = request.split("?")[0]
-
 
         elif request_method == 'ADMIN':  # ADMIN REQUEST COMANDO
             admrequestlow = request.split(' ')[1]  # SE O REQUEST FOR..
@@ -265,7 +300,7 @@ def createServer(client):
 
             if admrequest == 'FLUSH':
                 CACHE.clear_cache()
-                
+
             elif admrequest == 'DELETE':
                 cmd = request.split(' ')[2]
 
@@ -281,6 +316,7 @@ def createServer(client):
                     case "0":
                         # Despejar os nomes do sites que estão no cache no ARQUIVO LOG
                         # Se for "INFO 0".. então despeje tudo que está na cache.
+                        CACHE.dump(0)
                         print('chama a função')
                     case "1":
                         # VER DEPOIS POR CONTA DO IF-MODIFIED-SINCE
@@ -302,17 +338,20 @@ def createServer(client):
 
         NFaltas = CONT_REQ - CONT_HITS
 
-        loggingmsg = str(_thread.get_native_id()) + "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
+        loggingmsg = str(_thread.get_native_id()) + \
+            "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
         LOGGER.info(loggingmsg)
 
-        loggingmsg = str(_thread.get_native_id()) + "\tNÚMERO TOTAIS DE HITS\t" + str(CONT_HITS)
+        loggingmsg = str(_thread.get_native_id()) + \
+            "\tNÚMERO TOTAIS DE HITS\t" + str(CONT_HITS)
         LOGGER.info(loggingmsg)
 
-        loggingmsg = str(_thread.get_native_id()) +"\tNÚMERO TOTAIS DE FALTAS\t" + str(NFaltas)
+        loggingmsg = str(_thread.get_native_id()) + \
+            "\tNÚMERO TOTAIS DE FALTAS\t" + str(NFaltas)
         LOGGER.info(loggingmsg)
- 
+
         client.close()
-        
+
     except Exception as Error:
         print("[*] Erro ao receber mensagem {}".format(Error))
         client.close()
