@@ -21,10 +21,11 @@ s.connect(('localhost',PORT))
 
 url = input("Request: ")
 s.send(url.encode())
-header = s.recv(1024) #vou receber algo de la-> HTTP 200 OK (HEADER)
-# print('Mensagem ecoada',header.decode())
-print(header.decode())
 
-"""
-print(s.recv(packagesize).decode('utf-8'))
-print(s.recv(packagesize).decode())"""
+# header = s.recv(1024) #vou receber algo de la-> HTTP 200 OK (HEADER)
+# print('Mensagem ecoada',header.decode())
+# print(header.decode())
+
+
+print(s.recv(1024).decode('utf-8'))
+print(s.recv(1024).decode())
