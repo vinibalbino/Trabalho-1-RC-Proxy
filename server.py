@@ -32,7 +32,7 @@ class LRUCache(object):
 
             self.lru[key] = self.tm
             self.tm = self.tm + 1
-            self.qtdHits[key] = self.qtdHits + 1
+            self.qtdHits[key] = self.qtdHits[key] + 1
             print("Cached")
 
             return self.cache_data[key]
@@ -89,6 +89,8 @@ class LRUCache(object):
                 self.cache_data[key] = value
                 self.lru[key] = self.tm
                 self.tm = self.tm + 1
+                self.qtdHits[key] = 0
+                # self.qtdHits[key] = self.qtdHits[key] + 1
                 return 1
 
         else:
@@ -102,6 +104,7 @@ class LRUCache(object):
             self.cache_data[key] = value
             self.lru[key] = self.tm
             self.tm = self.tm + 1
+            self.qtdHits[key] = 0
             return 1
         # print("\nLRU: {}\n".format(self.lru))
         # print("\nCache: {}\n".format(self.cache_data))
@@ -165,20 +168,36 @@ class LRUCache(object):
             #  DUMP \TAB <fileid> \TAB <size> \TAB <hits> \TAB <expire date> \TAB <URL>
 
             for key in self.cache_data:
-                print("\n KEY: {}".format(key))
-                # print("\nTESTE: {}".format(self.lru[key]))
                 itemSize = sys.getsizeof(self.cache_data[key])
-                # Colocar A quantidade de HIT naquela pagina
-                loggingmsg = str(_thread.get_native_id())+"\t " + "DUMP"+ "\t" + "fileid" + str(contForFile)+ "\t " + str(itemSize) + "\t "+ "\t " + str(self.expires[key]) + "\t " + str(key)
+
+                loggingmsg = str(_thread.get_native_id())+"\t " + "DUMP"+ "\t" + "fileid" + str(contForFile)+ "\t " + str(itemSize) + "\t " + str(self.qtdHits[key]) + "\t " + str(self.expires[key]) + "\t " + str(key)
                 LOGGER.info(loggingmsg)
                 contForFile = contForFile + 1
                 itemSize = 0
                 loggingmsg = ""
 
-            # self.cache_data[key]
+        elif identifier == 1:
+            for key in self.cache_data:
+                ALL_size_in_bytes += sys.getsizeof(self.cache_data[key])
+
+            loggingmsg = str(_thread.get_native_id())+"\t" + \
+                " DUMP"+"\t"+" Size \t" + str(ALL_size_in_bytes)
+            LOGGER.info(loggingmsg)
+
+            timeNow = datetime.datetime.now()
+            itemSize = 0
+            contForFile = 1
+
+            for key in self.cache_data:
+                if not(timeNow > self.expires[key]):    
+                    loggingmsg = str(_thread.get_native_id())+"\t " + "DUMP"+ "\t" + "fileid" + str(contForFile)+ "\t " + str(itemSize) + "\t " + str(self.qtdHits[key]) + "\t " + str(self.expires[key]) + "\t " + str(key)
+                    LOGGER.info(loggingmsg)
+                
+                contForFile = contForFile + 1
+                itemSize = 0
+                loggingmsg = ""
+                
             
-        else:
-            print("asdasd")
         loggingmsg = str(_thread.get_native_id()) + \
                 "\t"+" DUMP"+"\t"+" Dump End"
         LOGGER.info(loggingmsg)
@@ -321,6 +340,7 @@ def createServer(client):
                     case "1":
                         # VER DEPOIS POR CONTA DO IF-MODIFIED-SINCE
                         # Se for "INFO 1".. então despeje tudo o que não estiver expirado.
+                        CACHE.dump(1)
                         print('chama a função')
                     case "2":
                         # JOGAR TODAS AS ESTATISTICAS
