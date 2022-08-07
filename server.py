@@ -131,7 +131,6 @@ class LRUCache(object):
         else:
             print("Não foi possivel deletar")
 
-        print("\nLRU: {}\n".format(self.lru))
 
     def expire_cache(self, key):
 
@@ -142,7 +141,7 @@ class LRUCache(object):
 
         if timeNow > expireDate:
             self.delete(key)
-            loggingmsg = str(_thread.get_native_id())+"\t"+key+"\t Expired"
+            loggingmsg = str(_thread.get_native_id())+"\t" + "EVICT"+"\t"+key+"\t Expired"
             LOGGER.info(loggingmsg)
 
     def dump(self, identifier):
@@ -161,7 +160,7 @@ class LRUCache(object):
                 ALL_size_in_bytes += sys.getsizeof(self.cache_data[key])
 
             loggingmsg = str(_thread.get_native_id())+"\t" + \
-                " DUMP"+"\t"+" Size \t" + str(ALL_size_in_bytes)
+                "DUMP"+"\t"+" Size \t" + str(ALL_size_in_bytes)
             LOGGER.info(loggingmsg)
 
             # <identificador> \TAB
