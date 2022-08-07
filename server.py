@@ -1,5 +1,6 @@
 import socket
 import _thread
+from sre_parse import CATEGORIES
 import sys
 import time
 import urllib3
@@ -11,9 +12,9 @@ LOGGER = {}
 PORT = 0
 CACHE_SIZE_IN_BYTES = 0
 LOG_FILENAME = ""
-CONT_REQ = 0
+CONT_REQ  = 0
 CONT_HITS = 0
-
+OLD_CACHE_SIZE = 0
 
 class LRUCache(object):
     def __init__(self, capacity):
@@ -152,7 +153,6 @@ class LRUCache(object):
             "\t"+" DUMP"+"\t"+" Dump Start"
         LOGGER.info(loggingmsg)
 
-        itemSize = 0
         contForFile = 1
 
         if identifier == 0:
@@ -167,10 +167,14 @@ class LRUCache(object):
             #  DUMP \TAB <fileid> \TAB <size> \TAB <hits> \TAB <expire date> \TAB <URL>
 
             for key in self.cache_data:
+                
                 itemSize = sys.getsizeof(self.cache_data[key])
 
-                loggingmsg = str(_thread.get_native_id())+"\t " + "DUMP"+ "\t" + "fileid" + str(contForFile)+ "\t " + str(itemSize) + "\t " + str(self.qtdHits[key]) + "\t " + str(self.expires[key]) + "\t " + str(key)
+                loggingmsg = str(_thread.get_native_id())+"\tDUMP\t" + "fileid" +\
+                     str(contForFile)+ "\t " + str(itemSize) + "\t "\
+                        + str(self.qtdHits[key]) + "\t " + str(self.expires[key]) + "\t " + str(key)
                 LOGGER.info(loggingmsg)
+                
                 contForFile = contForFile + 1
                 itemSize = 0
                 loggingmsg = ""
@@ -179,16 +183,17 @@ class LRUCache(object):
             for key in self.cache_data:
                 ALL_size_in_bytes += sys.getsizeof(self.cache_data[key])
 
-            loggingmsg = str(_thread.get_native_id())+"\t" + \
-                " DUMP"+"\t"+" Size \t" + str(ALL_size_in_bytes)
+            loggingmsg = str(_thread.get_native_id())+"\tDUMP\t" +\
+                "Size\t" + str(ALL_size_in_bytes)
             LOGGER.info(loggingmsg)
 
             timeNow = datetime.datetime.now()
-            itemSize = 0
+
             contForFile = 1
 
             for key in self.cache_data:
-                if not(timeNow > self.expires[key]):    
+                if not(timeNow > self.expires[key]):   
+                    itemSize = sys.getsizeof(self.cache_data[key])
                     loggingmsg = str(_thread.get_native_id())+"\t " + "DUMP"+ "\t" + "fileid" + str(contForFile)+ "\t " + str(itemSize) + "\t " + str(self.qtdHits[key]) + "\t " + str(self.expires[key]) + "\t " + str(key)
                     LOGGER.info(loggingmsg)
                 
@@ -198,8 +203,47 @@ class LRUCache(object):
                 
             
         loggingmsg = str(_thread.get_native_id()) + \
-                "\t"+" DUMP"+"\t"+" Dump End"
+                "\tDUMP\tDump End"
         LOGGER.info(loggingmsg)
+
+    def changeCapacity(self, newCapacity):
+    
+        newCapacity = newCapacity * 1024
+    
+        if( newCapacity > self.capacity):
+            self.capacity = newCapacity * 1024
+        else:
+            size_in_bytes = 0
+            for url in self.cache_data:
+                size_in_bytes += sys.getsizeof(self.cache_data[url])
+
+            while((size_in_bytes) > newCapacity):
+                if not (self.lru == {}):
+                    old_key = min(self.lru.keys(), key=lambda k: self.lru[k])
+
+                # removendo
+                if not (self.lru == {}):
+                    try:
+                        # Evicted
+                        # LOGGER.info(loggingmsg)
+                        # remove o mais antigo do cache
+                        loggingmsg = ""
+                        loggingmsg = str(_thread.get_native_id()) + \
+                            "\tEVICT\t"+old_key+"\tCACHE FULL"
+                        LOGGER.info(loggingmsg)
+
+                        self.cache_data.pop(old_key)
+                        self.lru.pop(old_key)  # remove do LRU
+                        self.expires.pop(old_key)
+
+                    except:
+                        print("Não foi possivel remover o cache antigo.")
+
+                size_in_bytes = 0
+                for url in self.cache_data:
+                    size_in_bytes += sys.getsizeof(self.cache_data[url])
+            
+            self.capacity = newCapacity 
 
 def verifica_Cache(url_, c):
     try:
@@ -222,9 +266,6 @@ def verifica_Cache(url_, c):
                 print("[*] Não possivel adicionar")
                 c.send(result)
 
-            # print("Computando")
-            # time.sleep(3)
-            # return result
         else:
             # Aqui adicionar a variavel de HIT++ pois está no cache
             loggingmsg = str(_thread.get_native_id())+"\tHIT\t" + \
@@ -265,9 +306,41 @@ def _generate_headers(response_code):
     return("{}".format(header))
 
 
+def dumpStatistics():
+    global CONT_REQ, CONT_HITS, CACHE_SIZE_IN_BYTES, CACHE, OLD_CACHE_SIZE
+
+    NFaltas = CONT_REQ - CONT_HITS
+
+    loggingmsg = str(_thread.get_native_id()) + \
+        "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
+    LOGGER.info(loggingmsg)
+
+    loggingmsg = str(_thread.get_native_id()) + \
+        "\tNÚMERO TOTAIS DE HITS\t" + str(CONT_HITS)
+    LOGGER.info(loggingmsg)
+
+    loggingmsg = str(_thread.get_native_id()) + \
+        "\tNÚMERO TOTAIS DE FALTAS\t" + str(NFaltas)
+    LOGGER.info(loggingmsg)
+    
+    cachePageMediumSize = NFaltas/(CACHE.capacity/1024)
+
+    loggingmsg = str(_thread.get_native_id()) + \
+        "\tTAMANHO MÉDIO DAS PAGINAS DO CACHE\t" + str(cachePageMediumSize)
+    LOGGER.info(loggingmsg)
+    
+    loggingmsg = str(_thread.get_native_id()) + \
+        "\tCHSIZE\t" + "old:\t" + str(OLD_CACHE_SIZE/1024) + \
+        "\tnew:\t" + str(CACHE.capacity/1024)
+    LOGGER.info(loggingmsg)
+    
+    # loggingmsg = str(_thread.get_native_id()) "\tCHSIZE\t"+"old:\t" + str(CURRENT_CACHE_SIZE/1024)"+"new: \t"+str(NEW_CACHE_SIZE/1024)
+    # loggingmsg = str(_thread.get_native_id())+"\tCHSIZE\t"+cache_size #<identificador> \TAB CHSIZE \TAB old: <oldsize> new: <newsize>
+    # loggingmsg = str(_thread.get_native_id())+"\tEVICT\t"+url"\tEXPIRED" #algo foi expulso do cache
+
+
 def createServer(client):
-    global CONT_REQ, CONT_HITS
-    global CACHE
+    global CACHE, OLD_CACHE_SIZE, CONT_REQ
     try:
 
         request = client.recv(1024).decode()  # qq coisa tira decode aq // poe
@@ -309,6 +382,9 @@ def createServer(client):
             verifica_Cache(url, client)
 
             CONT_REQ = CONT_REQ + 1
+            loggingmsg = str(_thread.get_native_id()) + \
+            "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
+            LOGGER.info(loggingmsg)
 
             url = request.split("?")[0]
 
@@ -335,40 +411,32 @@ def createServer(client):
                         # Despejar os nomes do sites que estão no cache no ARQUIVO LOG
                         # Se for "INFO 0".. então despeje tudo que está na cache.
                         CACHE.dump(0)
-                        print('chama a função')
                     case "1":
                         # VER DEPOIS POR CONTA DO IF-MODIFIED-SINCE
                         # Se for "INFO 1".. então despeje tudo o que não estiver expirado.
                         CACHE.dump(1)
-                        print('chama a função')
                     case "2":
                         # JOGAR TODAS AS ESTATISTICAS
                         # Se for "INFO 2'.. registras estatisticas no log
-                        print('chama a função')
+                        dumpStatistics()
                     case other:
                         print('501 NOT IMPLEMENTED')
-            elif admrequest == 'MUDAR':
+            elif admrequest == 'CHANGE':
                 # cmd vai valer o tamanho que quero mudar
                 cmd = request.split(' ')[2]
-                # chamar a funçao mudadr(cmd)
+                cmd = int(cmd)
+                OLD_CACHE_SIZE = CACHE.capacity
+                print("OLD: {}".format(OLD_CACHE_SIZE))
+                CACHE.changeCapacity(cmd)
+                print("NEW: {}".format(CACHE.capacity))
+                # chamar a funçao mudar(cmd)
 
         else:
             print("[*]Requisão HTTP desconhecida\n")
 
-        NFaltas = CONT_REQ - CONT_HITS
+        # Colocar no log a quantidade de requisições
 
-        loggingmsg = str(_thread.get_native_id()) + \
-            "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
-        LOGGER.info(loggingmsg)
-
-        loggingmsg = str(_thread.get_native_id()) + \
-            "\tNÚMERO TOTAIS DE HITS\t" + str(CONT_HITS)
-        LOGGER.info(loggingmsg)
-
-        loggingmsg = str(_thread.get_native_id()) + \
-            "\tNÚMERO TOTAIS DE FALTAS\t" + str(NFaltas)
-        LOGGER.info(loggingmsg)
-
+    
         client.close()
 
     except Exception as Error:
@@ -378,7 +446,7 @@ def createServer(client):
 
 def main():
 
-    global CACHE, LOGGER, PORT, CACHE_SIZE_IN_BYTES, LOG_FILENAME
+    global CACHE, LOGGER, PORT, CACHE_SIZE_IN_BYTES, LOG_FILENAME, OLD_CACHE_SIZE
 
     size_args = len(sys.argv)
 
@@ -413,6 +481,8 @@ def main():
 
     CACHE = LRUCache(capacity=CACHE_SIZE_IN_BYTES)
 
+    OLD_CACHE_SIZE = CACHE_SIZE_IN_BYTES / 1024
+    
     try:
         print("[*] Servidor iniciando...")
         s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
