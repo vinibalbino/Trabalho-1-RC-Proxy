@@ -334,9 +334,15 @@ def requestTreatment(client):
 
 
         if request_method == "GET":
-            response_header = _generate_headers(200)
-            response = response_header.encode()
-            client.send(response)
+            url = request.split(" ")[1]
+            if ".com" in url:
+                response_header = _generate_headers(200)
+                response = response_header.encode()
+                client.send(response)
+            else:
+                response_header = _generate_headers(404)
+                response = response_header.encode()
+                client.send(response)
 
         elif request_method == "ADMIN":
             response_header = _generate_headers(200)
@@ -362,16 +368,19 @@ def requestTreatment(client):
                 print("Test")
                 CACHE.expire_cache(url)
 
-            print("\n[*]Conectando em: {}\n".format(url))
+            if ".com" in url:
+                print("\n[*]Conectando em: {}\n".format(url))
 
-            verifica_Cache(url, client)
+                verifica_Cache(url, client)
 
-            CONT_REQ = CONT_REQ + 1
-            loggingmsg = str(_thread.get_native_id()) + \
-                         "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
-            LOGGER.info(loggingmsg)
+                CONT_REQ = CONT_REQ + 1
+                loggingmsg = str(_thread.get_native_id()) + \
+                            "\tNUMERO TOTAL DE REQUISIÇÕES\t" + str(CONT_REQ)
+                LOGGER.info(loggingmsg)
 
-            url = request.split("?")[0]
+                url = request.split("?")[0]
+            else: 
+                client.send("[*] Necessario um HTTP formatado corretamente")
 
         elif request_method == 'ADMIN':
             admrequestlow = request.split(' ')[1]
