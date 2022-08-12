@@ -345,14 +345,14 @@ def requestTreatment(client):
                 client.send(response)
 
         elif request_method == "ADMIN":
-            url = request.split(" ")[1]
-            if not "" in url:
+            if request.split(" ")[1] == "INFO" or request.split(" ")[1] == "FLUSH" or request.split(" ")[1] == "DELETE" or request.split(" ")[1] == "CHANGE" :
                 response_header = _generate_headers(200)
                 response = response_header.encode()
                 client.send(response)
             else:
                 response_header = _generate_headers(404)
                 response = response_header.encode()
+                print("\n[*] FORMATO ADMIN INCORRETO\n")
                 client.send(response)
 
         else:
@@ -371,7 +371,6 @@ def requestTreatment(client):
                 url = "http://" + url
 
             if "if-modified-since" in request:
-                print("Test")
                 CACHE.expire_cache(url)
 
             if ".com" in url:
