@@ -122,6 +122,7 @@ class LRUCache(object):
             self.cache_data.pop(key)
             self.lru.pop(key)
             self.qtdHits.pop(key)
+            print("\n[*]Objeto Deletado: {}\n".format(key))
 
         else:
             print("Não foi possivel deletar")
@@ -201,7 +202,12 @@ class LRUCache(object):
         newCapacity = newCapacity * 1024
 
         if (newCapacity > self.capacity):
-            self.capacity = newCapacity * 1024
+            loggingmsg = str(_thread.get_native_id()) + \
+                    "\tCHSIZE\t OLD: "+ str(self.capacity/1024) + "\t NEW: " + str(newCapacity/1024) 
+            LOGGER.info(loggingmsg)   
+
+            self.capacity = newCapacity
+            
         else:
             size_in_bytes = 0
             for url in self.cache_data:
@@ -227,12 +233,22 @@ class LRUCache(object):
 
                     except:
                         print("Não foi possivel remover o cache antigo.")
+                        
+                        loggingmsg = str(_thread.get_native_id()) + \
+                        "\t[*] Não foi possivel remover o cachef\t" 
+
+                        LOGGER.info(loggingmsg)
+
 
                 size_in_bytes = 0
                 for url in self.cache_data:
                     size_in_bytes += sys.getsizeof(self.cache_data[url])
 
+            loggingmsg = str(_thread.get_native_id()) + \
+                    "\tCHSIZE\t OLD: "+ str(self.capacity/1024) + "\t NEW: " + str(newCapacity/1024) 
+            LOGGER.info(loggingmsg)   
             self.capacity = newCapacity
+            
 
 #Verifica se o url requirido existe no cache ou não
 def verifica_Cache(url_, c):
@@ -254,6 +270,10 @@ def verifica_Cache(url_, c):
                 c.send(result)
             else:
                 print("[*] Não possivel adicionar")
+                loggingmsg = str(_thread.get_native_id()) + \
+                 "\t[*] Não foi possivel adicionar\t"
+                LOGGER.info(loggingmsg)
+
                 c.send(result)
 
         else:
@@ -270,6 +290,9 @@ def verifica_Cache(url_, c):
 
     except Exception as Error:
         print("[*] Erro ao verificar/adicionar ao cache: {} ".format(Error))
+        loggingmsg = str(_thread.get_native_id()) + \
+                 "\t[*] Erro ao verificar/adicionar ao cache\t" + str(CONT_REQ)
+        LOGGER.info(loggingmsg)
 
 #abre o site
 def open_website(url):
@@ -332,7 +355,6 @@ def requestTreatment(client):
         request = client.recv(1024).decode()
         request_method = request.split(" ")[0]
 
-
         if request_method == "GET":
             url = request.split(" ")[1]
             if ".com" in url:
@@ -344,18 +366,7 @@ def requestTreatment(client):
                 response = response_header.encode()
                 client.send(response)
 
-        elif request_method == "ADMIN":
-            if request.split(" ")[1] == "INFO" or request.split(" ")[1] == "FLUSH" or request.split(" ")[1] == "DELETE" or request.split(" ")[1] == "CHANGE" :
-                response_header = _generate_headers(200)
-                response = response_header.encode()
-                client.send(response)
-            else:
-                response_header = _generate_headers(404)
-                response = response_header.encode()
-                print("\n[*] FORMATO ADMIN INCORRETO\n")
-                client.send(response)
-
-        else:
+        elif request_method != "ADMIN":
             response_header = _generate_headers(404)
             response = response_header.encode()
             client.send(response)
@@ -392,42 +403,162 @@ def requestTreatment(client):
                 
 
         elif request_method == 'ADMIN':
-            admrequestlow = request.split(' ')[1]
-            admrequest = admrequestlow.upper()
+            variavelHTTP = False
 
-            if admrequest == 'FLUSH':
-                CACHE.clear_cache()
+            if 'HTTP / 1.1' in request:
+                variavelHTTP = True
+                
+            if variavelHTTP:
+                admrequest = request.split(' ')[1]
 
-            elif admrequest == 'DELETE':
-                cmd = request.split(' ')[2]
-
-                if not ("http://" in cmd):
-                    cmd = "http://" + cmd
-
-                CACHE.delete(cmd)
-
-            elif admrequest == 'INFO':
-                cmd = request.split(' ')[2]
-
-                match cmd:
-                    case "0":
-                        CACHE.dump(0)
-                    case "1":
-                        CACHE.dump(1)
-                    case "2":
-                        dumpStatistics()
-                    case other:
-                        print('501 NOT IMPLEMENTED')
+                if admrequest == 'FLUSH' or admrequest == 'flush':
+                    sizeList = request.split()
+                    if len(sizeList) >= 6:
+                        # Geral
+                        response_header = _generate_headers(404)
+                        response = response_header.encode()
+                        client.send(response)
+                        print("\n[*] FORMATO ADMIN INCORRETO\n")
+                        loggingmsg = str(_thread.get_native_id()) + \
+                        "\t[*] FORMATO ADMIN INCORRETO\t"
+                        LOGGER.info(loggingmsg)
+                    else:
+                        response_header = _generate_headers(200)
+                        response = response_header.encode()
+                        client.send(response)
+                        CACHE.clear_cache()
                         
-            elif admrequest == 'CHANGE':
-                #cmd = tamanho que quero mudar
-                cmd = request.split(' ')[2]
-                cmd = int(cmd)
-                OLD_CACHE_SIZE = CACHE.capacity
-                print("OLD: {}".format(OLD_CACHE_SIZE))
-                CACHE.changeCapacity(cmd)
-                print("NEW: {}".format(CACHE.capacity))
-                # chamar a funçao mudar(cmd)
+            
+                elif admrequest == 'DELETE':
+                    cmd = request.split(' ')[5]
+
+                    if not ("http://" in cmd):
+                        cmd = "http://" + cmd
+
+                    response_header = _generate_headers(200)
+                    response = response_header.encode()
+                    client.send(response)
+
+                    CACHE.delete(cmd)
+
+                        
+                    loggingmsg = str(_thread.get_native_id()) + \
+                                "\tDELETE\t" + cmd
+                    LOGGER.info(loggingmsg)
+
+
+
+                elif admrequest == 'INFO' or admrequest == 'info':
+                    cmd = request.split(' ')[5]
+
+                    match cmd:
+                        case "0":
+                            response_header = _generate_headers(200)
+                            response = response_header.encode()
+                            client.send(response)
+                            CACHE.dump(0)
+                        case "1":
+                            response_header = _generate_headers(200)
+                            response = response_header.encode()
+                            client.send(response)
+                            CACHE.dump(1)
+                        case "2":
+                            response_header = _generate_headers(200)
+                            response = response_header.encode()
+                            client.send(response)
+                            dumpStatistics()
+                        case other:
+                            response_header = _generate_headers(404)
+                            response = response_header.encode()
+                            client.send(response)
+                            print('501 NOT IMPLEMENTED')
+                            
+                elif admrequest == 'CHANGE':
+                    #cmd = tamanho que quero mudar
+                    cmd = request.split(' ')[5]
+                    cmd = int(cmd)
+                    response_header = _generate_headers(200)
+                    response = response_header.encode()
+                    client.send(response)
+                    OLD_CACHE_SIZE = CACHE.capacity
+                    print("OLD: {}".format(OLD_CACHE_SIZE))
+                    CACHE.changeCapacity(cmd)
+                    print("NEW: {}".format(CACHE.capacity))
+                    # chamar a funçao mudar(cmd)
+            else:
+                admrequest = request.split(' ')[1]
+
+                if admrequest == 'FLUSH' or admrequest == 'flush':
+                    sizeList = request.split() 
+                   
+                    if len(sizeList) > 2:
+                        response_header = _generate_headers(404)
+                        response = response_header.encode()
+                        client.send(response)
+                        print("\n[*] FORMATO ADMIN INCORRETO\n")
+                        loggingmsg = str(_thread.get_native_id()) + \
+                        "\t[*] FORMATO ADMIN INCORRETO\t"
+                    else:
+                        response_header = _generate_headers(200)
+                        response = response_header.encode()
+                        client.send(response)
+                        CACHE.clear_cache()
+
+                elif admrequest == 'DELETE':
+                    cmd = request.split(' ')[2]
+
+                    if not ("http://" in cmd):
+                        cmd = "http://" + cmd
+
+                    CACHE.delete(cmd)
+
+                    response_header = _generate_headers(200)
+                    response = response_header.encode()
+                    client.send(response)
+                    loggingmsg = str(_thread.get_native_id()) + \
+                                "\tDELETE\t" + cmd
+                    LOGGER.info(loggingmsg)
+
+
+                elif admrequest == 'INFO' or admrequest == 'info':
+                    cmd = request.split(' ')[2]
+
+                    match cmd:
+                        case "0":
+                            response_header = _generate_headers(200)
+                            response = response_header.encode()
+                            client.send(response)
+                            CACHE.dump(0)
+                        case "1":
+                            response_header = _generate_headers(200)
+                            response = response_header.encode()
+                            client.send(response)
+                            CACHE.dump(1)
+                        case "2":
+                            response_header = _generate_headers(200)
+                            response = response_header.encode()
+                            client.send(response)
+                            dumpStatistics()
+                        case other:
+                            response_header = _generate_headers(404)
+                            response = response_header.encode()
+                            client.send(response)
+                            print('501 NOT IMPLEMENTED')
+                            
+                elif admrequest == 'CHANGE':
+                    #cmd = tamanho que quero mudar
+                    cmd = request.split(' ')[2]
+                    cmd = int(cmd)
+                    print(cmd)
+                    response_header = _generate_headers(200)
+                    response = response_header.encode()
+                    client.send(response)
+
+                    OLD_CACHE_SIZE = CACHE.capacity
+                    print("OLD: {}".format(OLD_CACHE_SIZE))
+                    CACHE.changeCapacity(cmd)
+                    print("NEW: {}".format(CACHE.capacity))
+                    # chamar a funçao mudar(cmd)
 
         else:
             print("[*]Requisão HTTP desconhecida\n")

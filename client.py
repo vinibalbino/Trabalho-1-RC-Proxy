@@ -21,6 +21,8 @@ dest = (HOST, PORT)
 
 s.connect(dest)
 
+print("\n[*] Servidor conectado com sucesso, ouvindo requisição\n")
+
 url = input("Request: ")
 s.send(url.encode())
 
