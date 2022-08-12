@@ -345,9 +345,15 @@ def requestTreatment(client):
                 client.send(response)
 
         elif request_method == "ADMIN":
-            response_header = _generate_headers(200)
-            response = response_header.encode()
-            client.send(response)
+            url = request.split(" ")[1]
+            if not "" in url:
+                response_header = _generate_headers(200)
+                response = response_header.encode()
+                client.send(response)
+            else:
+                response_header = _generate_headers(404)
+                response = response_header.encode()
+                client.send(response)
 
         else:
             response_header = _generate_headers(404)
@@ -379,8 +385,12 @@ def requestTreatment(client):
                 LOGGER.info(loggingmsg)
 
                 url = request.split("?")[0]
-            else: 
+            else:
+                loggingmsg = str(_thread.get_native_id()) + \
+                            "\t[*]Necessario um HTTP formatado corretamente\t"
+                LOGGER.info(loggingmsg)
                 client.send("[*] Necessario um HTTP formatado corretamente")
+                
 
         elif request_method == 'ADMIN':
             admrequestlow = request.split(' ')[1]
@@ -409,6 +419,7 @@ def requestTreatment(client):
                         dumpStatistics()
                     case other:
                         print('501 NOT IMPLEMENTED')
+                        
             elif admrequest == 'CHANGE':
                 #cmd = tamanho que quero mudar
                 cmd = request.split(' ')[2]
@@ -421,7 +432,9 @@ def requestTreatment(client):
 
         else:
             print("[*]Requisão HTTP desconhecida\n")
-
+            loggingmsg = str(_thread.get_native_id()) + \
+                            "\t[*]Requisão HTTP desconhecida\t"
+            LOGGER.info(loggingmsg)
 
         client.close()
 
